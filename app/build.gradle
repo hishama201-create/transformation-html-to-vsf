@@ -13,9 +13,23 @@ android {
         versionName "1.0.0"
     }
 
+    signingConfigs {
+        release {
+            storeFile file("../backup-release-key.keystore")
+            storePassword "BackupPro2026"
+            keyAlias "backupapp"
+            keyPassword "BackupPro2026"
+        }
+    }
+
     buildTypes {
+        debug {
+            // نفس مفتاح التوقيع الثابت، حتى نسخ debug تُثبَّت كتحديث فوق بعضها دائمًا
+            signingConfig signingConfigs.release
+        }
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
         }
     }
 
