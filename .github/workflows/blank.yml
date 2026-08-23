@@ -21,7 +21,7 @@ jobs:
         run: chmod +x ./gradlew || true
 
       - name: Generate gradle wrapper if missing
-        run: gradle wrapper --gradle-version 8.4 || true
+        run: gradle wrapper --gradle-version 8.6 || true
 
       - name: Build debug APK
         run: ./gradlew assembleDebug
