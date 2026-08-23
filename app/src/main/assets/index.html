@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Backup Pro</title>
+<style>
+  :root{
+    --navy:#2f4157;
+    --navy-dark:#25333f;
+    --teal:#3aafa9;
+    --teal-light:#5fd3cd;
+    --bg:#f2f5f7;
+    --card:#ffffff;
+    --text:#2a2f36;
+    --muted:#8a94a0;
+    --danger:#e6584f;
+    --radius:16px;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body {
+    font-family:-apple-system,'Segoe UI',Tahoma,Arial,sans-serif;
+    margin:0; background:var(--bg); color:var(--text);
+    display:flex; flex-direction:column; min-height:100vh;
+    user-select:none;
+  }
+  header {
+    background:linear-gradient(135deg,var(--navy),var(--teal));
+    color:#fff; padding:22px 18px 26px; text-align:center;
+    display:flex; align-items:center; justify-content:center; gap:10px;
+  }
+  header .app-icon{ width:30px; height:30px; }
+  header h1{ font-size:19px; margin:0; font-weight:700; letter-spacing:.3px; }
+
+  .tabs {
+    display:flex; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.06);
+    position:sticky; top:0; z-index:5;
+  }
+  .tab {
+    flex:1; padding:12px 4px; text-align:center; cursor:pointer;
+    font-size:12.5px; color:var(--muted); display:flex; flex-direction:column;
+    align-items:center; gap:4px; border-bottom:3px solid transparent; transition:.15s;
+  }
+  .tab svg{ width:20px; height:20px; stroke:var(--muted); transition:.15s; }
+  .tab.active{ color:var(--teal); border-bottom-color:var(--teal); font-weight:700; }
+  .tab.active svg{ stroke:var(--teal); }
+
+  .page { display:none; padding:18px; flex:1; }
+  .page.active { display:block; animation:fadeIn .25s ease; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+
+  .card {
+    background:var(--card); padding:18px; border-radius:var(--radius);
+    margin-bottom:16px; box-shadow:0 2px 10px rgba(20,30,40,.06);
+  }
+  .card-title{ display:flex; align-items:center; gap:10px; font-size:16px; font-weight:700; margin-bottom:8px; }
+  .card-title svg{ width:22px; height:22px; stroke:var(--teal); flex-shrink:0; }
+  .card p.desc{ color:var(--muted); font-size:13.5px; line-height:1.6; margin:6px 0 14px; }
+
+  button {
+    background:linear-gradient(135deg,var(--teal),var(--teal-light));
+    color:#fff; border:none; padding:13px 16px; border-radius:12px;
+    font-size:15px; width:100%; font-weight:700; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    box-shadow:0 4px 12px rgba(58,175,169,.35); transition:.15s;
+  }
+  button:active{ transform:scale(.98); box-shadow:0 2px 6px rgba(58,175,169,.3); }
+  button.secondary{
+    background:#fff; color:var(--navy); border:2px solid #e3e8ec;
+    box-shadow:none;
+  }
+  button:disabled{ opacity:.6; box-shadow:none; }
+  button svg{ width:18px; height:18px; stroke:currentColor; }
+
+  .folder-row{
+    display:flex; align-items:center; gap:10px; background:#f6f8fa;
+    border:1.5px dashed #d7dee3; border-radius:12px; padding:12px 14px; margin-bottom:14px;
+  }
+  .folder-row svg{ width:22px; height:22px; stroke:var(--navy); flex-shrink:0; }
+  .folder-row .folder-info{ flex:1; overflow:hidden; }
+  .folder-row .folder-label{ font-size:11.5px; color:var(--muted); }
+  .folder-row .folder-name{ font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  .status-box{
+    margin-top:14px; border-radius:12px; padding:12px 14px; font-size:13.5px;
+    display:none; align-items:center; gap:10px; line-height:1.5;
+  }
+  .status-box.show{ display:flex; }
+  .status-box.loading{ background:#eef6ff; color:#1c5aa8; }
+  .status-box.ok{ background:#eafaf3; color:#178a5b; }
+  .status-box.error{ background:#fdecea; color:#c0392b; }
+  .spinner{
+    width:18px; height:18px; border-radius:50%; flex-shrink:0;
+    border:3px solid rgba(28,90,168,.25); border-top-color:#1c5aa8;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  input[type=file]{
+    width:100%; padding:12px; border-radius:12px; border:1.5px solid #e3e8ec;
+    background:#f6f8fa; font-size:13px; margin-bottom:12px;
+  }
+
+  .about-row{ display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #eef1f3; font-size:14px; }
+  .about-row:last-child{ border-bottom:none; }
+  .about-row span:first-child{ color:var(--muted); }
+  .about-row span:last-child{ font-weight:700; }
+</style>
+</head>
+<body>
+
+<header>
+  <svg class="app-icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 16V8"></path><path d="M8.5 11.5 12 8l3.5 3.5"></path>
+    <path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path>
+  </svg>
+  <h1>Backup Pro</h1>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-page="sms" onclick="showPage('sms', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+    الرسائل
+  </div>
+  <div class="tab" data-page="contacts" onclick="showPage('contacts', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+    جهات الاتصال
+  </div>
+  <div class="tab" data-page="convert" onclick="showPage('convert', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"></path><path d="M20 7H4"></path><path d="m8 21-4-4 4-4"></path><path d="M4 17h16"></path></svg>
+    تحويل HTML
+  </div>
+  <div class="tab" data-page="settings" onclick="showPage('settings', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    الإعدادات
+  </div>
+</div>
+
+<!-- الرسائل -->
+<div id="sms" class="page active">
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      نسخ احتياطي للرسائل
+    </div>
+    <p class="desc">يتم نسخ كل الرسائل النصية إلى ملف JSON منظم، ويعمل الاستخراج بالخلفية دون أن يتجمد التطبيق مهما كان عدد الرسائل كبيرًا.</p>
+    <button id="btnSms" onclick="doBackupSms()">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      بدء النسخ الاحتياطي للرسائل
+    </button>
+    <div id="smsStatus" class="status-box"></div>
+  </div>
+</div>
+
+<!-- جهات الاتصال -->
+<div id="contacts" class="page">
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+      نسخ احتياطي لجهات الاتصال
+    </div>
+    <p class="desc">يتم تصدير جميع جهات الاتصال إلى ملف VCF قياسي يمكن استيراده على أي هاتف، ويعمل بالخلفية دون تهييج أو تجمّد للواجهة.</p>
+    <button id="btnContacts" onclick="doBackupContacts()">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      بدء النسخ الاحتياطي لجهات الاتصال
+    </button>
+    <div id="contactsStatus" class="status-box"></div>
+  </div>
+</div>
+
+<!-- تحويل HTML إلى VCF -->
+<div id="convert" class="page">
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"></path><path d="M20 7H4"></path><path d="m8 21-4-4 4-4"></path><path d="M4 17h16"></path></svg>
+      تحويل HTML إلى VCF
+    </div>
+    <p class="desc">اختر ملف HTML يحتوي أسماء وأرقام (مثل تصدير فيسبوك "دفاتر العناوين") وسيتم استخراج كل الأسماء مهما كان عددها (حتى آلاف الأسماء) وتحويلها كاملة إلى ملف VCF، ثم حفظها مباشرة في مسار الحفظ الذي تختاره. تتم المعالجة بالكامل بالخلفية بدون أي حد للعدد.</p>
+    <button id="btnConvert" onclick="convertHtmlToVcf()">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"></path><path d="M20 7H4"></path></svg>
+      تحويل وحفظ VCF
+    </button>
+    <div id="convertStatus" class="status-box"></div>
+  </div>
+</div>
+
+<!-- الإعدادات -->
+<div id="settings" class="page">
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+      مسار حفظ النسخ الاحتياطية
+    </div>
+    <p class="desc">اختر أي مجلد تريد أن تُحفظ فيه كل النسخ الاحتياطية (الرسائل، جهات الاتصال، وملفات التحويل). إن لم تختر مجلدًا سيتم الحفظ تلقائيًا في مجلد Downloads.</p>
+    <div class="folder-row">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+      <div class="folder-info">
+        <div class="folder-label">المجلد الحالي</div>
+        <div class="folder-name" id="currentFolderName">جارِ التحميل...</div>
+      </div>
+    </div>
+    <button onclick="pickFolder()">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+      اختيار مجلد الحفظ
+    </button>
+    <button class="secondary" style="margin-top:10px" onclick="resetFolder()">استخدام المسار الافتراضي (Downloads)</button>
+    <div id="folderStatus" class="status-box"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+      حول التطبيق
+    </div>
+    <div class="about-row"><span>الإصدار</span><span id="aboutVersion">—</span></div>
+    <div class="about-row"><span>المطور</span><span id="aboutDev">—</span></div>
+  </div>
+</div>
+
+<script>
+function showPage(id, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  el.classList.add('active');
+}
+
+function setStatus(elId, type, html){
+  const el = document.getElementById(elId);
+  el.className = 'status-box show ' + type;
+  if(type === 'loading'){
+    el.innerHTML = '<div class="spinner"></div><span>' + html + '</span>';
+  } else {
+    el.innerHTML = '<span>' + html + '</span>';
+  }
+}
+
+function setButtonsDisabled(disabled){
+  ['btnSms','btnContacts','btnConvert'].forEach(id=>{
+    const b = document.getElementById(id);
+    if(b) b.disabled = disabled;
+  });
+}
+
+// ---------------- الرسائل ----------------
+function doBackupSms(){
+  setButtonsDisabled(true);
+  setStatus('smsStatus','loading','جارِ استخراج الرسائل بالخلفية، الرجاء الانتظار...');
+  Android.backupSms(); // لا يوجد إرجاع فوري: العملية تعمل في الخلفية وتستدعي onSmsResult عند الانتهاء
+}
+window.onSmsResult = function(jsonStr){
+  setButtonsDisabled(false);
+  try{
+    const data = JSON.parse(jsonStr);
+    renderResult('smsStatus', data, 'رسالة');
+  }catch(e){
+    setStatus('smsStatus','error','تعذر قراءة نتيجة العملية');
+  }
+};
+
+// ---------------- جهات الاتصال ----------------
+function doBackupContacts(){
+  setButtonsDisabled(true);
+  setStatus('contactsStatus','loading','جارِ استخراج جهات الاتصال بالخلفية، الرجاء الانتظار...');
+  Android.backupContacts();
+}
+window.onContactsResult = function(jsonStr){
+  setButtonsDisabled(false);
+  try{
+    const data = JSON.parse(jsonStr);
+    renderResult('contactsStatus', data, 'جهة اتصال');
+  }catch(e){
+    setStatus('contactsStatus','error','تعذر قراءة نتيجة العملية');
+  }
+};
+
+function renderResult(statusId, data, unitLabel){
+  const result = data.result || '';
+  if(result === 'NO_PERMISSION'){
+    setStatus(statusId,'error','لا يوجد إذن كافٍ. الرجاء منح التطبيق الصلاحية المطلوبة من إعدادات النظام ثم إعادة المحاولة.');
+  } else if(result.startsWith('OK:')){
+    const path = result.substring(3);
+    const count = data.count !== undefined ? data.count : '';
+    setStatus(statusId,'ok','تم الحفظ بنجاح ✅ (' + count + ' ' + unitLabel + ')<br>المسار: ' + path);
+  } else if(result.startsWith('ERROR:')){
+    setStatus(statusId,'error','حدث خطأ: ' + result.substring(6));
+  } else {
+    setStatus(statusId,'error','نتيجة غير متوقعة');
+  }
+}
+
+// ---------------- حول التطبيق ----------------
+try {
+  const info = JSON.parse(Android.getAppInfo());
+  document.getElementById('aboutVersion').innerText = info.version;
+  document.getElementById('aboutDev').innerText = info.developer;
+} catch(e) {
+  document.getElementById('aboutVersion').innerText = 'غير متاح';
+}
+
+// ---------------- إعدادات مسار الحفظ ----------------
+function refreshFolderName(){
+  try{
+    document.getElementById('currentFolderName').innerText = Android.getSaveFolderName();
+  }catch(e){
+    document.getElementById('currentFolderName').innerText = 'Downloads (افتراضي)';
+  }
+}
+refreshFolderName();
+
+function pickFolder(){
+  setStatus('folderStatus','loading','اختر المجلد من نافذة النظام...');
+  Android.pickSaveFolder();
+}
+window.onFolderPicked = function(jsonStr){
+  try{
+    const data = JSON.parse(jsonStr);
+    if(data.ok){
+      setStatus('folderStatus','ok','تم تحديد مجلد الحفظ: ' + data.path);
+    } else {
+      setStatus('folderStatus','error','لم يتم اختيار مجلد: ' + (data.error || ''));
+    }
+  }catch(e){
+    setStatus('folderStatus','error','تعذرت معالجة الاستجابة');
+  }
+  refreshFolderName();
+};
+
+function resetFolder(){
+  try{ Android.resetSaveFolder(); }catch(e){}
+  setStatus('folderStatus','ok','تم الرجوع لاستخدام مجلد Downloads الافتراضي.');
+  refreshFolderName();
+}
+
+// ---------------- تحويل HTML إلى VCF ----------------
+// القراءة والتحليل والاستخراج تتم بالكامل في الكود الأصلي (Kotlin) بالخلفية،
+// وليس عبر جافاسكربت/WebView، حتى تعمل بشكل موثوق مهما كان عدد الأسماء كبيرًا (آلاف الأسماء).
+window.onConvertProgress = function(msg){
+  setStatus('convertStatus','loading', msg);
+};
+window.onConvertResult = function(jsonStr){
+  setButtonsDisabled(false);
+  try{
+    const data = JSON.parse(jsonStr);
+    renderResult('convertStatus', data, 'جهة اتصال');
+  }catch(e){
+    setStatus('convertStatus','error','تعذر قراءة نتيجة العملية');
+  }
+};
+
+function convertHtmlToVcf(){
+  setButtonsDisabled(true);
+  setStatus('convertStatus','loading','اختر ملف HTML من نافذة النظام...');
+  Android.pickHtmlFile();
+}
+</script>
+</body>
+</html>
