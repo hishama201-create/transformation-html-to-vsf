@@ -2,397 +2,149 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>Hisham File Guard | فحص الملفات</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backup Pro</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
-
-  :root{
-    --bg: #0b1210;
-    --panel: #0f1a17;
-    --panel-2: #12211d;
-    --line: #1e332c;
-    --text: #dfeae5;
-    --muted: #6f8a80;
-    --signal: #3ef2a8;
-    --signal-dim: #1f7a58;
-    --danger: #ff5c5c;
-    --warn: #f5b942;
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{
-    background:
-      radial-gradient(circle at 15% 0%, #10251f 0%, transparent 45%),
-      radial-gradient(circle at 100% 100%, #0d1e19 0%, transparent 50%),
-      var(--bg);
-    color:var(--text);
-    font-family:'Tajawal',sans-serif;
-    min-height:100vh;
-    padding:32px 18px 60px;
-  }
-  .wrap{max-width:760px; margin:0 auto;}
-
-  header{
-    display:flex; align-items:center; gap:16px;
-    padding-bottom:22px; margin-bottom:26px;
-    border-bottom:1px solid var(--line);
-  }
-  .mark{
-    width:52px; height:52px; border-radius:14px;
-    background:linear-gradient(160deg,var(--signal-dim),var(--panel-2));
-    border:1px solid var(--signal-dim);
-    display:flex; align-items:center; justify-content:center;
-    flex-shrink:0;
-  }
-  .mark svg{width:26px; height:26px;}
-  header h1{font-size:1.28rem; margin:0 0 4px; font-weight:900; letter-spacing:.2px;}
-  header .byline{
-    font-family:'JetBrains Mono',monospace;
-    font-size:.72rem; color:var(--signal);
-    letter-spacing:.5px;
-  }
-  header .byline span{color:var(--muted);}
-
-  .drop{
-    border:1.5px dashed var(--signal-dim);
-    background:var(--panel);
-    border-radius:18px;
-    padding:38px 20px;
-    text-align:center;
-    cursor:pointer;
-    transition:.2s border-color, .2s background;
-    position:relative;
-  }
-  .drop.hover{border-color:var(--signal); background:var(--panel-2);}
-  .drop input{display:none;}
-  .drop .icon{font-size:2.1rem; margin-bottom:10px; display:block;}
-  .drop .t1{font-weight:700; font-size:1rem;}
-  .drop .t2{color:var(--muted); font-size:.82rem; margin-top:6px; font-family:'JetBrains Mono',monospace;}
-
-  .status-line{
-    display:flex; align-items:center; gap:8px;
-    margin:18px 2px 0; font-family:'JetBrains Mono',monospace;
-    font-size:.75rem; color:var(--muted); min-height:18px;
-  }
-  .dot{width:7px; height:7px; border-radius:50%; background:var(--muted);}
-  .dot.busy{background:var(--warn); animation:pulse 1s infinite;}
-  @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.25}}
-
-  .report{margin-top:26px; display:none;}
-  .report.show{display:block;}
-
-  .verdict{
-    border-radius:16px; padding:22px;
-    border:1px solid var(--line);
-    background:var(--panel);
-    display:flex; align-items:center; gap:18px;
-    margin-bottom:20px;
-  }
-  .verdict .score{
-    font-family:'JetBrains Mono',monospace;
-    font-size:2.1rem; font-weight:700;
-    width:78px; text-align:center; flex-shrink:0;
-  }
-  .verdict .label{font-weight:900; font-size:1.05rem; margin-bottom:3px;}
-  .verdict .sub{color:var(--muted); font-size:.82rem;}
-  .v-safe .score{color:var(--signal);}
-  .v-warn .score{color:var(--warn);}
-  .v-danger .score{color:var(--danger);}
-
-  .section{
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:14px;
-    padding:16px 18px;
-    margin-bottom:12px;
-  }
-  .section h3{
-    font-size:.78rem; text-transform:uppercase; letter-spacing:.8px;
-    color:var(--muted); margin:0 0 10px; font-family:'JetBrains Mono',monospace;
-    font-weight:700;
-  }
-  .kv{display:flex; justify-content:space-between; gap:10px; padding:6px 0; font-size:.88rem; border-bottom:1px dashed var(--line);}
-  .kv:last-child{border-bottom:none;}
-  .kv .k{color:var(--muted);}
-  .kv .v{font-family:'JetBrains Mono',monospace; font-size:.82rem; text-align:left; direction:ltr;}
-
-  .flag{
-    display:flex; gap:10px; align-items:flex-start;
-    padding:9px 0; font-size:.87rem; border-bottom:1px dashed var(--line);
-  }
-  .flag:last-child{border-bottom:none;}
-  .flag .fi{flex-shrink:0; font-size:1rem; margin-top:1px;}
-  .flag.ok .fi{color:var(--signal);}
-  .flag.warn .fi{color:var(--warn);}
-  .flag.danger .fi{color:var(--danger);}
-  .flag .ft{color:var(--text);}
-  .flag small{display:block; color:var(--muted); margin-top:2px; font-size:.76rem;}
-
-  footer{
-    text-align:center; margin-top:34px;
-    color:var(--muted); font-size:.72rem;
-    font-family:'JetBrains Mono',monospace;
-    line-height:1.9;
-  }
-  footer b{color:var(--signal);}
-
-  .reset-btn{
-    display:none; margin:16px auto 0; padding:9px 22px;
-    background:transparent; border:1px solid var(--signal-dim);
-    color:var(--signal); border-radius:10px; cursor:pointer;
-    font-family:'Tajawal'; font-size:.85rem; font-weight:700;
-  }
-  .reset-btn.show{display:block;}
-  .reset-btn:hover{background:var(--signal-dim); color:#03130d;}
+  * { box-sizing: border-box; }
+  body { font-family: sans-serif; margin:0; background:#f4f5f7; }
+  header { background:#2f4157; color:#fff; padding:18px; text-align:center; font-size:20px; }
+  .tabs { display:flex; background:#fff; border-bottom:1px solid #ddd; }
+  .tab { flex:1; padding:12px; text-align:center; cursor:pointer; font-size:14px; }
+  .tab.active { border-bottom:3px solid #3aafa9; color:#3aafa9; font-weight:bold; }
+  .page { display:none; padding:20px; }
+  .page.active { display:block; }
+  button { background:#3aafa9; color:#fff; border:none; padding:12px 16px; border-radius:8px; font-size:15px; width:100%; margin-top:10px; }
+  .card { background:#fff; padding:16px; border-radius:10px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  #log { white-space:pre-wrap; font-size:13px; color:#444; margin-top:10px; }
+  input[type=file]{ width:100%; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<header>Backup Pro</header>
+<div class="tabs">
+  <div class="tab active" onclick="showPage('sms')">الرسائل</div>
+  <div class="tab" onclick="showPage('contacts')">جهات الاتصال</div>
+  <div class="tab" onclick="showPage('convert')">HTML → VCF</div>
+  <div class="tab" onclick="showPage('about')">حول</div>
+</div>
 
-  <header>
-    <div class="mark">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#3ef2a8" stroke-width="1.8">
-        <path d="M12 2 4 5v6c0 5 3.4 8.6 8 11 4.6-2.4 8-6 8-11V5l-8-3Z"/>
-        <path d="m9 12 2 2 4-4"/>
-      </svg>
-    </div>
-    <div>
-      <h1>Hisham File Guard — فحص الملفات المشبوهة</h1>
-      <div class="byline">تصميم وتطوير: <span>المهندس هشام الصبري</span> · فحص محلي بالكامل داخل المتصفح</div>
-    </div>
-  </header>
-
-  <div class="drop" id="drop">
-    <input type="file" id="fileInput">
-    <span class="icon">📁</span>
-    <div class="t1">اسحب الملف هنا أو اضغط للاختيار</div>
-    <div class="t2">apk / exe / pdf / doc / zip / js ... — أي نوع ملف</div>
+<div id="sms" class="page active">
+  <div class="card">
+    <p>نسخ احتياطي لكل الرسائل النصية إلى ملف JSON داخل مجلد Downloads.</p>
+    <button onclick="doBackupSms()">ابدأ النسخ الاحتياطي للرسائل</button>
+    <div id="smsLog" class="log"></div>
   </div>
+</div>
 
-  <div class="status-line" id="statusLine"></div>
+<div id="contacts" class="page">
+  <div class="card">
+    <p>نسخ احتياطي لكل جهات الاتصال إلى ملف VCF داخل مجلد Downloads.</p>
+    <button onclick="doBackupContacts()">ابدأ النسخ الاحتياطي لجهات الاتصال</button>
+    <div id="contactsLog" class="log"></div>
+  </div>
+</div>
 
-  <div class="report" id="report"></div>
+<div id="convert" class="page">
+  <div class="card">
+    <p>اختر ملف HTML يحتوي جدول (اسم، رقم) وسيتم تحويله إلى VCF بدون فقد أي اسم.</p>
+    <input type="file" id="htmlFile" accept=".html,.htm">
+    <button onclick="convertHtmlToVcf()">تحويل وتنزيل VCF</button>
+    <div id="log"></div>
+  </div>
+</div>
 
-  <button class="reset-btn" id="resetBtn">فحص ملف آخر</button>
-
-  <footer>
-    هذه الأداة تعطي <b>تقدير مخاطر أولي</b> بناءً على مؤشرات شكلية للملف (الامتداد، البصمة الحقيقية، العشوائية، كلمات مشبوهة).<br>
-    لا تُغني عن مضاد فيروسات حقيقي محدث — استخدمها كخط دفاع إضافي وليس بديلًا كاملاً.
-  </footer>
+<div id="about" class="page">
+  <div class="card" id="aboutCard">جارِ التحميل...</div>
 </div>
 
 <script>
-const drop = document.getElementById('drop');
-const fileInput = document.getElementById('fileInput');
-const statusLine = document.getElementById('statusLine');
-const report = document.getElementById('report');
-const resetBtn = document.getElementById('resetBtn');
-
-drop.addEventListener('click', ()=> fileInput.click());
-drop.addEventListener('dragover', e=>{e.preventDefault(); drop.classList.add('hover');});
-drop.addEventListener('dragleave', ()=> drop.classList.remove('hover'));
-drop.addEventListener('drop', e=>{
-  e.preventDefault(); drop.classList.remove('hover');
-  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener('change', e=>{
-  if(e.target.files.length) handleFile(e.target.files[0]);
-});
-resetBtn.addEventListener('click', ()=>{
-  report.classList.remove('show');
-  report.innerHTML='';
-  statusLine.innerHTML='';
-  resetBtn.classList.remove('show');
-  fileInput.value='';
-});
-
-const DANGEROUS_EXT = ['exe','scr','bat','cmd','com','pif','vbs','vbe','js','jse','wsf','wsh','msi','msp','ps1','apk','jar','dll','sh','app','dmg','deb'];
-const DOUBLE_EXT_LURE = ['pdf','jpg','jpeg','png','doc','docx','xls','xlsx','txt','mp3','mp4'];
-
-const SIGNATURES = [
-  {hex:[0x4D,0x5A], type:'Windows EXE/DLL (MZ)'},
-  {hex:[0x50,0x4B,0x03,0x04], type:'ZIP / APK / JAR / DOCX archive'},
-  {hex:[0x25,0x50,0x44,0x46], type:'PDF'},
-  {hex:[0x89,0x50,0x4E,0x47], type:'PNG'},
-  {hex:[0xFF,0xD8,0xFF], type:'JPEG'},
-  {hex:[0x7F,0x45,0x4C,0x46], type:'ELF (Linux/Android native binary)'},
-  {hex:[0x52,0x61,0x72,0x21], type:'RAR'},
-  {hex:[0x1F,0x8B], type:'GZIP'},
-];
-
-function bytesToHexPreview(bytes){
-  return Array.from(bytes.slice(0,16)).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
 }
 
-function detectSignature(bytes){
-  for(const sig of SIGNATURES){
-    if(sig.hex.every((b,i)=>bytes[i]===b)) return sig.type;
-  }
-  return null;
+function doBackupSms(){
+  const result = Android.backupSms();
+  document.getElementById('smsLog').innerText = result;
+}
+function doBackupContacts(){
+  const result = Android.backupContacts();
+  document.getElementById('contactsLog').innerText = result;
 }
 
-function shannonEntropy(bytes){
-  const freq = new Array(256).fill(0);
-  for(const b of bytes) freq[b]++;
-  let entropy = 0;
-  const len = bytes.length;
-  for(const f of freq){
-    if(f===0) continue;
-    const p = f/len;
-    entropy -= p*Math.log2(p);
-  }
-  return entropy; // max 8
+// تحميل معلومات حول التطبيق
+try {
+  const info = JSON.parse(Android.getAppInfo());
+  document.getElementById('aboutCard').innerHTML =
+    "الإصدار: " + info.version + "<br>المطور: " + info.developer;
+} catch(e) {
+  document.getElementById('aboutCard').innerText = "تعذر تحميل المعلومات";
 }
 
-const SUSPICIOUS_KEYWORDS = [
-  'eval(', 'unescape(', 'fromCharCode', 'ActiveXObject', 'WScript.Shell',
-  'powershell -enc', 'Invoke-Expression', 'document.write(unescape',
-  'base64_decode', 'shell_exec', 'system(', 'CreateObject("WScript',
-  'Regsvr32', 'certutil -decode', '-nop -w hidden'
-];
+// ---- تحويل HTML إلى VCF (بدون فقد أي اسم) ----
+function convertHtmlToVcf(){
+  const fileInput = document.getElementById('htmlFile');
+  const logEl = document.getElementById('log');
+  if(!fileInput.files.length){ logEl.innerText = "اختر ملف HTML أولاً"; return; }
 
-function scanTextForKeywords(text){
-  const found = [];
-  for(const kw of SUSPICIOUS_KEYWORDS){
-    if(text.includes(kw)) found.push(kw);
-  }
-  return found;
-}
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const text = e.target.result;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, "text/html");
 
-function getExt(name){
-  const parts = name.split('.');
-  if(parts.length < 2) return '';
-  return parts[parts.length-1].toLowerCase();
-}
+    let entries = [];
 
-function hasDoubleExtLure(name){
-  const parts = name.split('.');
-  if(parts.length < 3) return false;
-  const last = parts[parts.length-1].toLowerCase();
-  const second = parts[parts.length-2].toLowerCase();
-  return DANGEROUS_EXT.includes(last) && DOUBLE_EXT_LURE.includes(second);
-}
-
-async function handleFile(file){
-  report.classList.remove('show');
-  resetBtn.classList.remove('show');
-  statusLine.innerHTML = '<span class="dot busy"></span> جارٍ تحليل الملف...';
-
-  const buf = await file.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  const ext = getExt(file.name);
-  const sig = detectSignature(bytes);
-  const entropy = shannonEntropy(bytes.slice(0, Math.min(bytes.length, 200000)));
-  const doubleExt = hasDoubleExtLure(file.name);
-
-  let textSample = '';
-  try{
-    const isTexty = ['js','vbs','html','htm','txt','ps1','bat','cmd','hta','svg','xml'].includes(ext) || bytes.length < 2_000_000;
-    if(isTexty){
-      textSample = new TextDecoder('utf-8', {fatal:false}).decode(bytes.slice(0, 500000));
+    // المحاولة 1: قراءة من جدول (tr > td)
+    const rows = doc.querySelectorAll("tr");
+    if (rows.length > 0){
+      rows.forEach(row=>{
+        const cells = row.querySelectorAll("td, th");
+        if (cells.length >= 2){
+          const name = cells[0].textContent.trim();
+          const number = cells[1].textContent.trim();
+          if (name || number){
+            entries.push({name: name || "بدون اسم", number: number});
+          }
+        }
+      });
     }
-  }catch(e){}
-  const keywordHits = textSample ? scanTextForKeywords(textSample) : [];
 
-  const flags = [];
-  let riskScore = 0;
-
-  if(DANGEROUS_EXT.includes(ext)){
-    flags.push({level:'warn', text:`الامتداد (.${ext}) من الامتدادات القابلة للتنفيذ`, sub:'ملفات التنفيذ تحتاج حذر خاص قبل فتحها'});
-    riskScore += 25;
-  }
-
-  if(doubleExt){
-    flags.push({level:'danger', text:'اسم الملف يحاول التمويه بامتداد مزدوج', sub:`مثال: name.${file.name.split('.').slice(-2).join('.')} — أسلوب شائع لخداع المستخدم`});
-    riskScore += 35;
-  }
-
-  if(sig && ext){
-    const mismatch =
-      (sig.includes('EXE') && !['exe','dll','scr','com'].includes(ext)) ||
-      (sig.includes('ZIP') && !['zip','apk','jar','docx','xlsx','pptx'].includes(ext)) ||
-      (sig.includes('PDF') && ext!=='pdf') ||
-      (sig.includes('ELF') && ext!=='so' && ext!=='elf' && ext!=='bin');
-    if(mismatch){
-      flags.push({level:'danger', text:'محتوى الملف الفعلي لا يطابق امتداده', sub:`الامتداد يقول .${ext} لكن البصمة الحقيقية تدل على: ${sig}`});
-      riskScore += 40;
-    } else {
-      flags.push({level:'ok', text:'بصمة الملف مطابقة للامتداد المعلن', sub:sig});
+    // المحاولة 2: إن لم يوجد جدول، اقرأ كل الأسطر (اسم ثم رقم بالتناوب)
+    if (entries.length === 0){
+      const bodyText = doc.body.innerText || doc.body.textContent || "";
+      const lines = bodyText.split("\n").map(l=>l.trim()).filter(l=>l.length>0);
+      for(let i=0; i<lines.length; i+=2){
+        const name = lines[i] || "بدون اسم";
+        const number = lines[i+1] || "";
+        entries.push({name, number});
+      }
     }
-  } else if(!sig){
-    flags.push({level:'warn', text:'تعذّر التعرف على بصمة الملف من الرؤوس المعروفة', sub:'قد يكون تنسيقًا نادرًا أو تم تعديل رأس الملف عمدًا'});
-    riskScore += 10;
-  }
 
-  if(entropy > 7.5){
-    flags.push({level:'warn', text:'محتوى الملف عالي العشوائية (Entropy مرتفع)', sub:`Entropy: ${entropy.toFixed(2)} / 8 — شائع في الملفات المشفّرة أو المحزومة (packed) لإخفاء كود ضار`});
-    riskScore += 20;
-  } else {
-    flags.push({level:'ok', text:'مستوى العشوائية في المحتوى طبيعي', sub:`Entropy: ${entropy.toFixed(2)} / 8`});
-  }
+    if (entries.length === 0){
+      logEl.innerText = "لم يتم العثور على بيانات قابلة للتحويل";
+      return;
+    }
 
-  if(keywordHits.length){
-    flags.push({level:'danger', text:`تم رصد ${keywordHits.length} كلمة/نمط مشبوه داخل محتوى الملف`, sub:keywordHits.slice(0,6).join('  ·  ')});
-    riskScore += 15 * Math.min(keywordHits.length,3);
-  } else if(textSample){
-    flags.push({level:'ok', text:'لم يُعثر على أنماط أكواد ضارة شائعة في المحتوى', sub:'فحص نصي أساسي فقط'});
-  }
+    let vcf = "";
+    entries.forEach(en=>{
+      vcf += "BEGIN:VCARD\nVERSION:3.0\nFN:" + en.name + "\nTEL:" + en.number + "\nEND:VCARD\n";
+    });
 
-  if(file.size === 0){
-    flags.push({level:'warn', text:'حجم الملف صفر بايت', sub:'ملف فارغ أو تالف'});
-    riskScore += 5;
-  }
-  if(file.size > 0 && file.size < 1024 && DANGEROUS_EXT.includes(ext)){
-    flags.push({level:'warn', text:'ملف تنفيذي بحجم صغير جدًا', sub:'أحيانًا مؤشر على downloader/dropper بسيط'});
-    riskScore += 10;
-  }
+    const blob = new Blob([vcf], {type:"text/vcard"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "contacts_converted.vcf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
 
-  riskScore = Math.min(100, riskScore);
-
-  let verdictClass = 'v-safe', verdictLabel = 'مؤشرات منخفضة الخطورة', verdictSub='لم تُرصد علامات تحذيرية قوية بناءً على هذا الفحص السريع';
-  if(riskScore >= 60){
-    verdictClass='v-danger'; verdictLabel='مؤشرات خطورة مرتفعة — لا تفتح الملف'; verdictSub='ننصح بحذفه وعدم تشغيله، أو فحصه بمضاد فيروسات كامل قبل أي تعامل معه';
-  } else if(riskScore >= 25){
-    verdictClass='v-warn'; verdictLabel='مؤشرات خطورة متوسطة — تعامل بحذر'; verdictSub='راجع التفاصيل أدناه قبل فتح الملف';
-  }
-
-  const icon = f => f.level==='ok' ? '✔' : f.level==='warn' ? '⚠' : '⛔';
-
-  report.innerHTML = `
-    <div class="verdict ${verdictClass}">
-      <div class="score">${riskScore}</div>
-      <div>
-        <div class="label">${verdictLabel}</div>
-        <div class="sub">${verdictSub}</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>معلومات الملف</h3>
-      <div class="kv"><span class="k">الاسم</span><span class="v">${file.name}</span></div>
-      <div class="kv"><span class="k">الحجم</span><span class="v">${(file.size/1024).toFixed(1)} KB</span></div>
-      <div class="kv"><span class="k">النوع المعلن</span><span class="v">${file.type || 'غير معروف'}</span></div>
-      <div class="kv"><span class="k">البصمة الحقيقية</span><span class="v">${sig || 'غير معروفة'}</span></div>
-      <div class="kv"><span class="k">أول 16 بايت (hex)</span><span class="v">${bytesToHexPreview(bytes)}</span></div>
-    </div>
-
-    <div class="section">
-      <h3>نتائج الفحص</h3>
-      ${flags.map(f=>`
-        <div class="flag ${f.level}">
-          <span class="fi">${icon(f)}</span>
-          <div>
-            <div class="ft">${f.text}</div>
-            ${f.sub ? `<small>${f.sub}</small>` : ''}
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-
-  statusLine.innerHTML = '<span class="dot" style="background:#3ef2a8"></span> اكتمل الفحص';
-  report.classList.add('show');
-  resetBtn.classList.add('show');
+    logEl.innerText = "تم التحويل بنجاح: " + entries.length + " جهة اتصال";
+  };
+  reader.readAsText(fileInput.files[0], "UTF-8");
 }
 </script>
 </body>
