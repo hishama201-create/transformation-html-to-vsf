@@ -1,6 +1,20 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
+// ================== إعدادات التوقيع (بدون كلمات سر ثابتة في الكود) ==================
+// المصدر الأول: ملف keystore.properties محلي (غير مرفوع للريبو، موجود في .gitignore).
+// المصدر الثاني (يُستخدم في GitHub Actions): متغيرات بيئة KEYSTORE_*.
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+def resolvedStoreFile = keystoreProps["storeFile"] ?: System.getenv("KEYSTORE_FILE")
+def resolvedStorePassword = keystoreProps["storePassword"] ?: System.getenv("KEYSTORE_STORE_PASSWORD")
+def resolvedKeyAlias = keystoreProps["keyAlias"] ?: System.getenv("KEYSTORE_KEY_ALIAS")
+def resolvedKeyPassword = keystoreProps["keyPassword"] ?: System.getenv("KEYSTORE_KEY_PASSWORD")
+
 android {
     namespace 'com.dev.backupapp'
     compileSdk 34
@@ -15,10 +29,12 @@ android {
 
     signingConfigs {
         release {
-            storeFile file("../backup-release-key.keystore")
-            storePassword "BackupPro2026"
-            keyAlias "backupapp"
-            keyPassword "BackupPro2026"
+            if (resolvedStoreFile != null) {
+                storeFile rootProject.file(resolvedStoreFile)
+                storePassword resolvedStorePassword
+                keyAlias resolvedKeyAlias
+                keyPassword resolvedKeyPassword
+            }
         }
     }
 
@@ -28,7 +44,11 @@ android {
             signingConfig signingConfigs.release
         }
         release {
-            minifyEnabled false
+            // R8/ProGuard: يشفّر (obfuscate) أسماء الكلاسات والدوال والمتغيرات في الكود،
+            // ويحذف أي كود غير مستخدم — يصعّب كثيرًا على أي حد يفكّ الـ APK فهم منطق التطبيق.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
     }

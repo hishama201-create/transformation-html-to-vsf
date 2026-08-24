@@ -97,6 +97,19 @@
   }
   @keyframes spin{ to{ transform:rotate(360deg); } }
 
+  .status-box .status-text{ flex:1; }
+  .progress-track{
+    width:100%; height:7px; border-radius:6px; background:rgba(28,90,168,.15);
+    overflow:hidden; margin-top:8px;
+  }
+  .progress-fill{
+    height:100%; border-radius:6px; background:linear-gradient(90deg,#1c5aa8,#3aafa9);
+    width:0%; transition:width .25s ease;
+  }
+  .progress-percent{ font-size:12px; font-weight:700; color:#1c5aa8; margin-inline-start:6px; }
+  .status-box.loading{ flex-direction:column; align-items:stretch; }
+  .status-box.loading .status-row{ display:flex; align-items:center; gap:10px; }
+
   input[type=file]{
     width:100%; padding:12px; border-radius:12px; border:1.5px solid #e3e8ec;
     background:#f6f8fa; font-size:13px; margin-bottom:12px;
@@ -131,7 +144,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"></path><path d="M20 7H4"></path><path d="m8 21-4-4 4-4"></path><path d="M4 17h16"></path></svg>
     تحويل HTML
   </div>
-  <div class="tab" data-page="about" onclick="showPage('settings', this)">
+  <div class="tab" data-page="about" onclick="showPage('about', this)">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
     حول التطبيق
   </div>
@@ -144,7 +157,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
       نسخ احتياطي للرسائل
     </div>
-    <p class="desc">يتم نسخ كل الرسائل النصية إلى ملف JSON منظم، ويعمل الاستخراج بالخلفية دون أن يتجمد التطبيق مهما كان عدد الرسائل كبيرًا.</p>
+    <p class="desc">يتم نسخ كل الرسائل النصية إلى ملف JSON منظم عبر خدمة تعمل بالخلفية مع إشعار يعرض نسبة التقدّم لحظيًا، وتستمر العملية حتى لو أغلقت التطبيق أو انتقلت لتطبيق آخر.</p>
     <button id="btnSms" onclick="doBackupSms()">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
       بدء النسخ الاحتياطي للرسائل
@@ -160,7 +173,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
       نسخ احتياطي لجهات الاتصال
     </div>
-    <p class="desc">يتم تصدير جميع جهات الاتصال إلى ملف VCF قياسي يمكن استيراده على أي هاتف، ويعمل بالخلفية دون تهييج أو تجمّد للواجهة.</p>
+    <p class="desc">يتم تصدير جميع جهات الاتصال إلى ملف VCF قياسي يمكن استيراده على أي هاتف. تمت زيادة سرعة الاستخراج بشكل كبير، ويعمل عبر خدمة بالخلفية مع إشعار تقدّم حي، وتستمر العملية حتى بعد إغلاق التطبيق.</p>
     <button id="btnContacts" onclick="doBackupContacts()">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
       بدء النسخ الاحتياطي لجهات الاتصال
@@ -176,7 +189,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"></path><path d="M20 7H4"></path><path d="m8 21-4-4 4-4"></path><path d="M4 17h16"></path></svg>
       تحويل HTML إلى VCF
     </div>
-    <p class="desc">اختر ملف HTML يحتوي أسماء وأرقام (مثل تصدير فيسبوك "دفاتر العناوين") وسيتم استخراج كل الأسماء مهما كان عددها (حتى آلاف الأسماء) وتحويلها كاملة إلى ملف VCF، ثم حفظها مباشرة في مسار الحفظ الذي تختاره. تتم المعالجة بالكامل بالخلفية بدون أي حد للعدد.</p>
+    <p class="desc">اختر ملف HTML يحتوي أسماء وأرقام (مثل تصدير فيسبوك "دفاتر العناوين") وسيتم استخراج كل الأسماء مهما كان عددها (حتى آلاف الأسماء) وتحويلها كاملة إلى ملف VCF، ثم حفظها مباشرة في مسار الحفظ الذي تختاره. تتم المعالجة عبر خدمة بالخلفية مع إشعار تقدّم حي، وتستمر حتى لو أغلقت التطبيق.</p>
     <button id="btnConvert" onclick="convertHtmlToVcf()">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"></path><path d="M20 7H4"></path></svg>
       تحويل وحفظ VCF
@@ -213,6 +226,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
       حول التطبيق
     </div>
+    <div class="about-row"><span>اسم التطبيق</span><span id="aboutAppName">—</span></div>
     <div class="about-row"><span>الإصدار</span><span id="aboutVersion">—</span></div>
     <div class="about-row"><span>المطور</span><span id="aboutDev">—</span></div>
   </div>
@@ -230,11 +244,36 @@ function setStatus(elId, type, html){
   const el = document.getElementById(elId);
   el.className = 'status-box show ' + type;
   if(type === 'loading'){
-    el.innerHTML = '<div class="spinner"></div><span>' + html + '</span>';
+    el.innerHTML =
+      '<div class="status-row"><div class="spinner"></div><span class="status-text">' + html + '</span>' +
+      '<span class="progress-percent" id="' + elId + 'Pct"></span></div>' +
+      '<div class="progress-track"><div class="progress-fill" id="' + elId + 'Fill"></div></div>';
   } else {
     el.innerHTML = '<span>' + html + '</span>';
   }
 }
+
+function setProgress(elId, percent){
+  const fill = document.getElementById(elId + 'Fill');
+  const pct = document.getElementById(elId + 'Pct');
+  if(fill) fill.style.width = Math.max(0, Math.min(100, percent)) + '%';
+  if(pct) pct.innerText = percent + '%';
+}
+
+// تحديثات التقدّم الحيّة القادمة من الخدمة الأمامية (Foreground Service) في الكوتلن.
+// تعمل العمليات الآن بالخلفية عبر إشعار مستقل، وتستمر حتى لو أُغلق التطبيق تمامًا؛
+// هذا المعالج فقط يحدّث الواجهة إن كان التطبيق مفتوحًا في تلك اللحظة.
+const OP_TO_STATUS = { contacts: 'contactsStatus', sms: 'smsStatus', convert: 'convertStatus' };
+window.onBackupProgress = function(jsonStr){
+  try{
+    const data = JSON.parse(jsonStr);
+    const statusId = OP_TO_STATUS[data.op];
+    if(!statusId) return;
+    setButtonsDisabled(true);
+    setStatus(statusId, 'loading', data.message || 'جارِ المعالجة...');
+    setProgress(statusId, data.percent || 0);
+  }catch(e){}
+};
 
 function setButtonsDisabled(disabled){
   ['btnSms','btnContacts','btnConvert'].forEach(id=>{
@@ -293,6 +332,7 @@ function renderResult(statusId, data, unitLabel){
 // ---------------- حول التطبيق ----------------
 try {
   const info = JSON.parse(Android.getAppInfo());
+  document.getElementById('aboutAppName').innerText = info.appName;
   document.getElementById('aboutVersion').innerText = info.version;
   document.getElementById('aboutDev').innerText = info.developer;
 } catch(e) {
@@ -334,11 +374,8 @@ function resetFolder(){
 }
 
 // ---------------- تحويل HTML إلى VCF ----------------
-// القراءة والتحليل والاستخراج تتم بالكامل في الكود الأصلي (Kotlin) بالخلفية،
-// وليس عبر جافاسكربت/WebView، حتى تعمل بشكل موثوق مهما كان عدد الأسماء كبيرًا (آلاف الأسماء).
-window.onConvertProgress = function(msg){
-  setStatus('convertStatus','loading', msg);
-};
+// القراءة والتحليل والاستخراج تتم بالكامل داخل خدمة أمامية في الكوتلن (BackupService)،
+// تعمل بالخلفية وتستمر حتى لو أُغلق التطبيق، مع إشعار تقدّم حي (window.onBackupProgress).
 window.onConvertResult = function(jsonStr){
   setButtonsDisabled(false);
   try{

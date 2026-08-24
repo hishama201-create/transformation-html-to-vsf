@@ -6,13 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.ContactsContract
 import android.provider.DocumentsContract
 import android.util.Base64
+import android.util.Log
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -21,20 +20,12 @@ import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.documentfile.provider.DocumentFile
-import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
-import java.io.FileWriter
-import java.util.concurrent.Executors
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), BackupService.ProgressListener {
 
     private lateinit var webView: WebView
     private lateinit var prefs: SharedPreferences
-
-    // تنفيذ عمليات النسخ الثقيلة في الخلفية حتى لا تتجمد الواجهة (ANR)
-    private val backgroundExecutor = Executors.newSingleThreadExecutor()
 
     private val PERMISSION_CODE = 100
     private val FILE_CHOOSER_CODE = 51426
@@ -50,6 +41,21 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        // ===== التحقق من توقيع التطبيق (حماية من إعادة التغليف/التوقيع بمفتاح آخر) =====
+        val sha256 = SignatureVerifier.getSigningSha256(this)
+        if (!SignatureVerifier.isSignatureValid(this)) {
+            // توقيع مزيّف/مختلف عن مفتاحك — أوقف التطبيق فورًا قبل تحميل أي واجهة أو صلاحيات
+            android.widget.Toast.makeText(
+                this, "تعذر التحقق من صحة التطبيق. الرجاء تثبيته من مصدر رسمي.", android.widget.Toast.LENGTH_LONG
+            ).show()
+            finish()
+            return
+        }
+        if (BuildConfig.DEBUG || sha256 == null) {
+            // مساعدة أثناء التطوير فقط: اطبع البصمة الحالية حتى تنسخها إلى SignatureVerifier.kt
+            Log.i("SignatureVerifier", "بصمة التوقيع الحالية: $sha256")
+        }
 
         webView = WebView(this)
         setContentView(webView)
@@ -85,6 +91,47 @@ class MainActivity : AppCompatActivity() {
         requestNeededPermissions()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // اربط الواجهة بمستمع تقدّم الخدمة حتى تصل التحديثات فورًا أثناء فتح التطبيق
+        BackupService.Bus.listener = this
+        // إن انتهت عملية بينما كان التطبيق مغلقًا، اعرض نتيجتها الآن بدل تجاهلها
+        deliverPendingResultIfAny("contacts", BackupService.KEY_PENDING_CONTACTS, "onContactsResult")
+        deliverPendingResultIfAny("sms", BackupService.KEY_PENDING_SMS, "onSmsResult")
+        deliverPendingResultIfAny("convert", BackupService.KEY_PENDING_CONVERT, "onConvertResult")
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (BackupService.Bus.listener === this) BackupService.Bus.listener = null
+    }
+
+    private fun deliverPendingResultIfAny(op: String, prefKey: String, jsCallback: String) {
+        val pending = prefs.getString(prefKey, null) ?: return
+        prefs.edit().remove(prefKey).apply()
+        notifyJs(jsCallback, pending)
+    }
+
+    // ================== BackupService.ProgressListener ==================
+
+    override fun onProgress(op: String, percent: Int, message: String) {
+        notifyJs("onBackupProgress", JSONObject().apply {
+            put("op", op)
+            put("percent", percent)
+            put("message", message)
+        }.toString())
+    }
+
+    override fun onFinished(op: String, resultJson: String) {
+        val callback = when (op) {
+            "contacts" -> "onContactsResult"
+            "sms" -> "onSmsResult"
+            "convert" -> "onConvertResult"
+            else -> return
+        }
+        notifyJs(callback, resultJson)
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         when (requestCode) {
             FILE_CHOOSER_CODE -> {
@@ -105,10 +152,19 @@ class MainActivity : AppCompatActivity() {
             HTML_PICK_CODE -> {
                 if (resultCode == Activity.RESULT_OK && data?.data != null) {
                     val uri = data.data!!
-                    notifyJs("onConvertProgress", "جارِ قراءة الملف وتحويل الأسماء (قد يستغرق بضع ثوانٍ للملفات الكبيرة)...")
-                    backgroundExecutor.execute {
-                        processHtmlToVcf(uri)
+                    try {
+                        contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    } catch (e: Exception) { /* بعض المزوّدين لا يدعمون الصلاحية الدائمة، نتابع دون ذلك */ }
+
+                    val serviceIntent = Intent(this, BackupService::class.java).apply {
+                        action = BackupService.ACTION_CONVERT_HTML
+                        this.data = uri
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
+                    ContextCompat.startForegroundService(this, serviceIntent)
+                    notifyJs("onBackupProgress", JSONObject().apply {
+                        put("op", "convert"); put("percent", 0); put("message", "جارِ التحضير...")
+                    }.toString())
                 } else {
                     notifyJs("onConvertResult", JSONObject().apply {
                         put("result", "ERROR:لم يتم اختيار أي ملف")
@@ -143,7 +199,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestNeededPermissions() {
-        val perms = arrayOf(Manifest.permission.READ_SMS, Manifest.permission.READ_CONTACTS)
+        val perms = mutableListOf(Manifest.permission.READ_SMS, Manifest.permission.READ_CONTACTS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
         val notGranted = perms.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
@@ -186,169 +245,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * يحفظ الملف في المجلد الذي اختاره المستخدم (إن وُجد)، وإلا في مجلد Downloads كخيار افتراضي.
-     * يُنفَّذ دومًا من خيط خلفي.
-     */
-    private fun writeBackupFile(filename: String, mimeType: String, content: String): String {
-        val treeUri = getSavedTreeUri()
-        if (treeUri != null) {
-            try {
-                val dir = DocumentFile.fromTreeUri(this, treeUri)
-                    ?: return "ERROR:تعذر فتح المجلد المختار"
-                // احذف أي ملف سابق بنفس الاسم حتى لا تتكرر النسخ
-                dir.findFile(filename)?.delete()
-                val newFile = dir.createFile(mimeType, filename)
-                    ?: return "ERROR:تعذر إنشاء الملف في المجلد المختار"
-                contentResolver.openOutputStream(newFile.uri)?.use { out ->
-                    out.write(content.toByteArray(Charsets.UTF_8))
-                } ?: return "ERROR:تعذر الكتابة في الملف"
-                return "OK:${newFile.uri}"
-            } catch (e: Exception) {
-                return "ERROR:${e.message}"
-            }
-        }
-        // fallback: مجلد التنزيلات العام
-        return try {
-            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if (!dir.exists()) dir.mkdirs()
-            val file = File(dir, filename)
-            FileWriter(file).use { it.write(content) }
-            "OK:${file.absolutePath}"
-        } catch (e: Exception) {
-            "ERROR:${e.message}"
-        }
-    }
-
-    // ================== استخراج جهات الاتصال من HTML (Kotlin أصلي، بدون WebView) ==================
-
-    private fun unescapeHtml(s: String): String {
-        return s
-            .replace("&amp;", "&")
-            .replace("&quot;", "\"")
-            .replace("&#039;", "'")
-            .replace("&apos;", "'")
-            .replace("&nbsp;", " ")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .trim()
-    }
-
-    private fun stripTags(s: String): String = s.replace(Regex("<[^>]*>"), "").trim()
-
-    /** الصيغة الأساسية: تصدير "دفاتر العناوين" من فيسبوك (كل جهة اتصال داخل div class="_a6-g") */
-    private fun parseFacebookAddressBook(html: String): List<Pair<String, List<String>>>? {
-        val marker = "<div class=\"_a6-g\">"
-        if (!html.contains(marker)) return null
-
-        val parts = html.split(marker).drop(1)
-        if (parts.isEmpty()) return null
-
-        val nameRegex = Regex("_a6-h[^\"]*\">(.*?)</div>", RegexOption.DOT_MATCHES_ALL)
-        val numRegex = Regex("_a6_p\">(.*?)</div>", RegexOption.DOT_MATCHES_ALL)
-
-        val results = mutableListOf<Pair<String, List<String>>>()
-        for (part in parts) {
-            // نكتفي ببداية الكتلة لتفادي التقاط بيانات من كتل تالية بالخطأ
-            val window = if (part.length > 4000) part.substring(0, 4000) else part
-            val nameMatch = nameRegex.find(window)
-            val name = nameMatch?.groupValues?.get(1)?.let { unescapeHtml(stripTags(it)) } ?: ""
-            val nums = numRegex.findAll(window)
-                .map { unescapeHtml(stripTags(it.groupValues[1])) }
-                .filter { it.isNotBlank() }
-                .toList()
-            if (name.isNotBlank() || nums.isNotEmpty()) {
-                results.add(Pair(name.ifBlank { "بدون اسم" }, nums))
-            }
-        }
-        return results
-    }
-
-    /** صيغة بديلة: جدول HTML عادي (tr > td) */
-    private fun parseHtmlTable(html: String): List<Pair<String, List<String>>>? {
-        val rowRegex = Regex("<tr[^>]*>(.*?)</tr>", RegexOption.DOT_MATCHES_ALL)
-        val cellRegex = Regex("<t[dh][^>]*>(.*?)</t[dh]>", RegexOption.DOT_MATCHES_ALL)
-        val rows = rowRegex.findAll(html).toList()
-        if (rows.isEmpty()) return null
-
-        val results = mutableListOf<Pair<String, List<String>>>()
-        for (row in rows) {
-            val cells = cellRegex.findAll(row.groupValues[1])
-                .map { unescapeHtml(stripTags(it.groupValues[1])) }
-                .toList()
-            if (cells.size >= 2) {
-                val name = cells[0].ifBlank { "بدون اسم" }
-                val number = cells[1]
-                if (name.isNotBlank() || number.isNotBlank()) {
-                    results.add(Pair(name, if (number.isNotBlank()) listOf(number) else emptyList()))
-                }
-            }
-        }
-        return if (results.isNotEmpty()) results else null
-    }
-
-    /** الملاذ الأخير: نص عادي بعد إزالة الوسوم، أسطر متبادلة (اسم ثم رقم) */
-    private fun parseFallbackLines(html: String): List<Pair<String, List<String>>> {
-        val bodyOnly = Regex("<body.*?>(.*)</body>", RegexOption.DOT_MATCHES_ALL)
-            .find(html)?.groupValues?.get(1) ?: html
-        val text = stripTags(bodyOnly.replace(Regex("<script.*?</script>", RegexOption.DOT_MATCHES_ALL), ""))
-        val lines = unescapeHtml(text).lines().map { it.trim() }.filter { it.isNotEmpty() }
-
-        val results = mutableListOf<Pair<String, List<String>>>()
-        var i = 0
-        while (i < lines.size) {
-            val name = lines[i].ifBlank { "بدون اسم" }
-            val number = lines.getOrNull(i + 1) ?: ""
-            results.add(Pair(name, if (number.isNotBlank()) listOf(number) else emptyList()))
-            i += 2
-        }
-        return results
-    }
-
-    private fun parseContacts(html: String): List<Pair<String, List<String>>> {
-        return parseFacebookAddressBook(html)
-            ?: parseHtmlTable(html)
-            ?: parseFallbackLines(html)
-    }
-
-    private fun buildVcf(contacts: List<Pair<String, List<String>>>): String {
-        val sb = StringBuilder()
-        for ((name, numbers) in contacts) {
-            sb.append("BEGIN:VCARD\nVERSION:3.0\nFN:").append(name).append("\n")
-            for (num in numbers) {
-                if (num.contains("@")) {
-                    sb.append("EMAIL:").append(num).append("\n")
-                } else {
-                    sb.append("TEL:").append(num).append("\n")
-                }
-            }
-            sb.append("END:VCARD\n")
-        }
-        return sb.toString()
-    }
-
-    /** يُنفَّذ دومًا من خيط خلفي: يقرأ ملف HTML كاملًا، يستخرج كل الأسماء (بدون أي حد للعدد)، ويحفظ VCF */
-    private fun processHtmlToVcf(uri: Uri) {
-        val result = try {
-            val html = contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-                ?: return notifyJs("onConvertResult", JSONObject().put("result", "ERROR:تعذرت قراءة الملف").toString())
-
-            val contacts = parseContacts(html)
-            if (contacts.isEmpty()) {
-                JSONObject().put("result", "ERROR:لم يتم العثور على بيانات قابلة للتحويل في هذا الملف").toString()
-            } else {
-                val vcf = buildVcf(contacts)
-                val saveResult = writeBackupFile("contacts_converted.vcf", "text/vcard", vcf)
-                JSONObject().apply {
-                    put("result", saveResult)
-                    put("count", contacts.size)
-                }.toString()
-            }
-        } catch (e: Exception) {
-            JSONObject().put("result", "ERROR:${e.message}").toString()
-        }
-        notifyJs("onConvertResult", result)
-    }
+    // ملاحظة: منطق حفظ الملفات وتحليل HTML واستخراج جهات الاتصال/الرسائل انتقل بالكامل
+    // إلى BackupService.kt ليعمل داخل خدمة أمامية (Foreground Service) تستمر بالعمل
+    // حتى بعد إغلاق التطبيق، بدل تنفيذه هنا داخل الـ Activity.
 
     inner class Bridge {
 
@@ -356,6 +255,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun getAppInfo(): String {
             val json = JSONObject()
+            json.put("appName", getString(R.string.app_name))
             json.put("version", BuildConfig.VERSION_NAME)
             json.put("developer", getString(R.string.developer_name))
             return json.toString()
@@ -392,7 +292,8 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().remove(KEY_TREE_URI).apply()
         }
 
-        // نسخ احتياطي لجهات الاتصال إلى ملف VCF — يعمل في الخلفية ولا يجمّد الواجهة
+        // نسخ احتياطي لجهات الاتصال — يبدأ خدمة أمامية (Foreground Service) تعمل حتى
+        // لو خرج المستخدم من التطبيق، مع إشعار يعرض نسبة التقدّم الفعلية بالوقت الحقيقي
         @JavascriptInterface
         fun backupContacts() {
             if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_CONTACTS)
@@ -400,56 +301,13 @@ class MainActivity : AppCompatActivity() {
                 notifyJs("onContactsResult", JSONObject().put("result", "NO_PERMISSION").toString())
                 return
             }
-
-            backgroundExecutor.execute {
-                val result = try {
-                    val sb = StringBuilder()
-                    var count = 0
-                    val cursor: Cursor? = contentResolver.query(
-                        ContactsContract.Contacts.CONTENT_URI, null, null, null, null
-                    )
-                    cursor?.use {
-                        val idIdx = it.getColumnIndex(ContactsContract.Contacts._ID)
-                        val nameIdx = it.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME)
-                        if (idIdx < 0 || nameIdx < 0) return@use
-
-                        while (it.moveToNext()) {
-                            val id = it.getString(idIdx) ?: continue
-                            val name = it.getString(nameIdx) ?: continue
-
-                            val phoneCursor = contentResolver.query(
-                                ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null,
-                                ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
-                                arrayOf(id), null
-                            )
-                            phoneCursor?.use { pc ->
-                                val numIdx = pc.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                                if (numIdx < 0) return@use
-                                while (pc.moveToNext()) {
-                                    val number = pc.getString(numIdx) ?: continue
-                                    sb.append("BEGIN:VCARD\n")
-                                    sb.append("VERSION:3.0\n")
-                                    sb.append("FN:$name\n")
-                                    sb.append("TEL:$number\n")
-                                    sb.append("END:VCARD\n")
-                                    count++
-                                }
-                            }
-                        }
-                    }
-                    val saveResult = writeBackupFile("contacts_backup.vcf", "text/vcard", sb.toString())
-                    JSONObject().apply {
-                        put("result", saveResult)
-                        put("count", count)
-                    }.toString()
-                } catch (e: Exception) {
-                    JSONObject().put("result", "ERROR:${e.message}").toString()
-                }
-                notifyJs("onContactsResult", result)
+            val intent = Intent(this@MainActivity, BackupService::class.java).apply {
+                action = BackupService.ACTION_BACKUP_CONTACTS
             }
+            ContextCompat.startForegroundService(this@MainActivity, intent)
         }
 
-        // نسخ احتياطي للرسائل إلى ملف JSON — يعمل في الخلفية ولا يجمّد الواجهة
+        // نسخ احتياطي للرسائل — نفس مبدأ جهات الاتصال: خدمة أمامية + إشعار تقدّم حي
         @JavascriptInterface
         fun backupSms() {
             if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_SMS)
@@ -457,38 +315,10 @@ class MainActivity : AppCompatActivity() {
                 notifyJs("onSmsResult", JSONObject().put("result", "NO_PERMISSION").toString())
                 return
             }
-
-            backgroundExecutor.execute {
-                val result = try {
-                    val arr = JSONArray()
-                    val cursor: Cursor? = contentResolver.query(
-                        Uri.parse("content://sms/"), null, null, null, null
-                    )
-                    cursor?.use {
-                        val addressIdx = it.getColumnIndex("address")
-                        val bodyIdx = it.getColumnIndex("body")
-                        val dateIdx = it.getColumnIndex("date")
-                        val typeIdx = it.getColumnIndex("type")
-
-                        while (it.moveToNext()) {
-                            val obj = JSONObject()
-                            obj.put("address", if (addressIdx >= 0) it.getString(addressIdx) ?: "" else "")
-                            obj.put("body", if (bodyIdx >= 0) it.getString(bodyIdx) ?: "" else "")
-                            obj.put("date", if (dateIdx >= 0) it.getString(dateIdx) ?: "" else "")
-                            obj.put("type", if (typeIdx >= 0) it.getString(typeIdx) ?: "" else "")
-                            arr.put(obj)
-                        }
-                    }
-                    val saveResult = writeBackupFile("sms_backup.json", "application/json", arr.toString(2))
-                    JSONObject().apply {
-                        put("result", saveResult)
-                        put("count", arr.length())
-                    }.toString()
-                } catch (e: Exception) {
-                    JSONObject().put("result", "ERROR:${e.message}").toString()
-                }
-                notifyJs("onSmsResult", result)
+            val intent = Intent(this@MainActivity, BackupService::class.java).apply {
+                action = BackupService.ACTION_BACKUP_SMS
             }
+            ContextCompat.startForegroundService(this@MainActivity, intent)
         }
 
         // اختيار ملف HTML لتحويله: القراءة والتحليل واستخراج كل الأسماء (بدون حد للعدد)

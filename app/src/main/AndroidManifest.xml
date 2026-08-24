@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- مطلوبة لتشغيل النسخ الاحتياطي كخدمة أمامية (Foreground Service) تستمر
+         حتى لو أغلق المستخدم التطبيق أو انتقل لتطبيق آخر -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -22,5 +28,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- خدمة أمامية تنفذ عمليات النسخ الاحتياطي والتحويل بالخلفية مع إشعار تقدّم مستمر -->
+        <service
+            android:name=".BackupService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>
