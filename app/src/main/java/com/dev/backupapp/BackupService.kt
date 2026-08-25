@@ -472,6 +472,30 @@ class BackupService : Service() {
         return if (name.isNotBlank() || nums.isNotEmpty()) Pair(name.ifBlank { "بدون اسم" }, nums) else null
     }
 
+    /** تنسيق تصدير فيسبوك "جهات الاتصال المستوردة": كل شخص داخل
+     * <table style="table-layout: fixed;">...</table> منفصل، وبداخله صفوف
+     * "حقل: قيمة" (وقت التحديث / اسم جهة الاتصال / نقطة اتصال...). نجمع هذه
+     * الحقول لجهة اتصال واحدة صحيحة بدل معاملة كل صف كجهة اتصال منفصلة. */
+    private fun parseContactFieldsTable(block: String): Pair<String, List<String>>? {
+        val pairRegex = Regex(
+            "_a6_q\">(.*?)</td>\\s*<td class=\"_2piu _a6_r\">(.*?)</td>",
+            RegexOption.DOT_MATCHES_ALL
+        )
+        var name = ""
+        val values = mutableListOf<String>()
+        for (m in pairRegex.findAll(block)) {
+            val label = unescapeHtml(stripTags(m.groupValues[1]))
+            val value = unescapeHtml(stripTags(m.groupValues[2])).trim('\u200f', '\u200e', ' ')
+            when {
+                label.contains("وقت") -> { /* تجاهل حقل وقت التحديث */ }
+                label.contains("اسم") -> if (name.isBlank()) name = value
+                else -> if (value.isNotBlank()) values.add(value) // نقطة اتصال / بريد / أي حقل آخر
+            }
+        }
+        if (name.isBlank() && values.isNotEmpty()) name = values.first()
+        return if (name.isNotBlank() || values.isNotEmpty()) Pair(name.ifBlank { "بدون اسم" }, values.distinct()) else null
+    }
+
     private fun parseTableRow(row: String): Pair<String, List<String>>? {
         val cellRegex = Regex("<t[dh][^>]*>(.*?)</t[dh]>", RegexOption.DOT_MATCHES_ALL)
         val inner = Regex("<tr[^>]*>(.*)</tr>", RegexOption.DOT_MATCHES_ALL).find(row)?.groupValues?.get(1) ?: row
@@ -493,8 +517,41 @@ class BackupService : Service() {
         return total
     }
 
-    /** تحليل تدفّقي لملفات تصدير جهات اتصال فيسبوك، حسب مواضع الفواصل (marker) فقط،
-     * بدون الاحتفاظ بأكثر من جزء صغير من الملف في الذاكرة بأي لحظة. */
+    /** تحليل تدفّقي لتنسيق "جدول لكل جهة اتصال" (تصدير جهات اتصال فيسبوك)، بنفس مبدأ
+     * التقطيع المحدود الذاكرة: نبحث عن بداية/نهاية كل <table> ونحلله فور اكتماله فقط. */
+    private fun streamContactFieldsTable(
+        reader: Reader, initial: String, eofAlready: Boolean,
+        onContact: (String, List<String>) -> Unit
+    ) {
+        val startMarker = "<table style=\"table-layout: fixed;\">"
+        val endMarker = "</table>"
+        val sb = StringBuilder(initial)
+        var eof = eofAlready
+        val chunkBuf = CharArray(200_000)
+        while (true) {
+            var searchFrom = 0
+            while (true) {
+                val idx1 = sb.indexOf(startMarker, searchFrom)
+                if (idx1 == -1) { searchFrom = maxOf(0, sb.length - startMarker.length + 1); break }
+                val idx2 = sb.indexOf(endMarker, idx1 + startMarker.length)
+                if (idx2 == -1) {
+                    if (eof) searchFrom = sb.length
+                    break
+                } else {
+                    val end = idx2 + endMarker.length
+                    parseContactFieldsTable(sb.substring(idx1, end))?.let { onContact(it.first, it.second) }
+                    searchFrom = end
+                }
+            }
+            if (searchFrom > 0) sb.delete(0, searchFrom)
+            if (eof) break
+            val n = reader.read(chunkBuf)
+            if (n == -1) eof = true else sb.append(chunkBuf, 0, n)
+        }
+    }
+
+    /** تحليل تدفّقي لملفات تصدير جهات اتصال فيسبوك (تنسيق قديم بديل)، حسب مواضع
+     * الفواصل (marker) فقط، بدون الاحتفاظ بأكثر من جزء صغير من الملف بالذاكرة. */
     private fun streamFacebookFormat(
         reader: Reader, initial: String, eofAlready: Boolean,
         onContact: (String, List<String>) -> Unit
@@ -581,13 +638,20 @@ class BackupService : Service() {
         pendingName?.let { onContact(it.ifBlank { "بدون اسم" }, emptyList()) }
     }
 
+    private fun escapeVcardValue(s: String): String =
+        s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
+            .replace("\r\n", "\\n").replace("\n", "\\n")
+
     private fun writeVcard(writer: BufferedWriter, name: String, numbers: List<String>) {
-        writer.write("BEGIN:VCARD\nVERSION:3.0\nFN:"); writer.write(name); writer.write("\n")
+        val safeName = escapeVcardValue(name)
+        writer.write("BEGIN:VCARD\r\n"); writer.write("VERSION:3.0\r\n")
+        writer.write("N:$safeName\r\n"); writer.write("FN:$safeName\r\n")
         for (num in numbers) {
-            if (num.contains("@")) { writer.write("EMAIL:"); writer.write(num); writer.write("\n") }
-            else { writer.write("TEL:"); writer.write(num); writer.write("\n") }
+            val safeNum = escapeVcardValue(num)
+            if (num.contains("@")) writer.write("EMAIL:$safeNum\r\n")
+            else writer.write("TEL:$safeNum\r\n")
         }
-        writer.write("END:VCARD\n")
+        writer.write("END:VCARD\r\n")
     }
 
     private fun getFileSize(uri: Uri): Long = try {
@@ -694,6 +758,8 @@ class BackupService : Service() {
             val eofAfterSample = sampleLen < sampleBuf.size
 
             when {
+                sample.contains("<table style=\"table-layout: fixed;\">") ->
+                    streamContactFieldsTable(reader, sample, eofAfterSample, onContact)
                 sample.contains("<div class=\"_a6-g\">") ->
                     streamFacebookFormat(reader, sample, eofAfterSample, onContact)
                 sample.contains("<tr") ->
