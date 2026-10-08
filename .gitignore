@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# التوقيع — ملفات حساسة لا تُرفع أبدًا
+*.keystore
+*.jks
+keystore.properties
+
+# ملفات IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# نظام التشغيل
+.DS_Store
+Thumbs.db
+
+# سجلات وأشياء محلية
+*.log
+local.properties

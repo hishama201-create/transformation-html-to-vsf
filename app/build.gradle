@@ -15,6 +15,13 @@ def resolvedStorePassword = keystoreProps["storePassword"] ?: System.getenv("KEY
 def resolvedKeyAlias = keystoreProps["keyAlias"] ?: System.getenv("KEYSTORE_KEY_ALIAS")
 def resolvedKeyPassword = keystoreProps["keyPassword"] ?: System.getenv("KEYSTORE_KEY_PASSWORD")
 
+// ================== رقم الإصدار ==================
+// عدّل هذه الأرقام الثلاثة فقط لإطلاق إصدار جديد؛
+// versionCode يُحسب تلقائيًا ويزيد دائمًا عند ترقية أي جزء (major/minor/patch)
+def VERSION_MAJOR = 1
+def VERSION_MINOR = 0
+def VERSION_PATCH = 0
+
 android {
     namespace 'com.dev.backupapp'
     compileSdk 34
@@ -23,8 +30,8 @@ android {
         applicationId "com.dev.backupapp"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.0.0"
+        versionCode = VERSION_MAJOR * 10000 + VERSION_MINOR * 100 + VERSION_PATCH
+        versionName = "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
     }
 
     signingConfigs {
