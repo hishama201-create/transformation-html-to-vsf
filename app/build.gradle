@@ -19,7 +19,7 @@ def resolvedKeyPassword = keystoreProps["keyPassword"] ?: System.getenv("KEYSTOR
 // عدّل هذه الأرقام الثلاثة فقط لإطلاق إصدار جديد؛
 // versionCode يُحسب تلقائيًا ويزيد دائمًا عند ترقية أي جزء (major/minor/patch)
 def VERSION_MAJOR = 1
-def VERSION_MINOR = 0
+def VERSION_MINOR = 1
 def VERSION_PATCH = 0
 
 android {
